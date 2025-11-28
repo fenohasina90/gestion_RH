@@ -113,26 +113,22 @@ public class DashboardController {
         turnover.put("taux", tauxTurnover);
         result.put("turnover", turnover);
 
-        // Absentéisme sur le mois donné
+        // Absentéisme sur le mois donné (basé sur feuilletemps + detailfeuilletemps)
+        // Hypothèse : une journée marquée estabsent = TRUE correspond à 8 heures d'absence
         Map<String, Object> absenteisme = new HashMap<>();
-        Double heuresAbsence = jdbcTemplate.queryForObject(
-                "SELECT COALESCE(SUM(nombreheures),0) FROM absence " +
-                        "WHERE EXTRACT(MONTH FROM datedebut) = ? AND EXTRACT(YEAR FROM datedebut) = ?",
-                Double.class, m, y
+        Map<String, Object> absRow = jdbcTemplate.queryForMap(
+                "SELECT " +
+                        "COALESCE(SUM(CASE WHEN df.estabsent THEN 8 ELSE 0 END), 0) AS heures_absence, " +
+                        "COUNT(*) FILTER (WHERE df.estabsent) AS nb_absences, " +
+                        "COUNT(DISTINCT ft.idemploye) FILTER (WHERE df.estabsent) AS employes_touches " +
+                        "FROM feuilletemps ft " +
+                        "JOIN detailfeuilletemps df ON df.idfeuilletemps = ft.id " +
+                        "WHERE ft.mois = ? AND ft.annee = ?",
+                m, y
         );
-        Integer nbAbsences = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM absence " +
-                        "WHERE EXTRACT(MONTH FROM datedebut) = ? AND EXTRACT(YEAR FROM datedebut) = ?",
-                Integer.class, m, y
-        );
-        Integer employesAvecAbsence = jdbcTemplate.queryForObject(
-                "SELECT COUNT(DISTINCT idemploye) FROM absence " +
-                        "WHERE EXTRACT(MONTH FROM datedebut) = ? AND EXTRACT(YEAR FROM datedebut) = ?",
-                Integer.class, m, y
-        );
-        absenteisme.put("heuresAbsence", heuresAbsence);
-        absenteisme.put("nbAbsences", nbAbsences);
-        absenteisme.put("employesTouches", employesAvecAbsence);
+        absenteisme.put("heuresAbsence", absRow.get("heures_absence"));
+        absenteisme.put("nbAbsences", absRow.get("nb_absences"));
+        absenteisme.put("employesTouches", absRow.get("employes_touches"));
         result.put("absenteisme", absenteisme);
 
         // Ancienneté moyenne

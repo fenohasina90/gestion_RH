@@ -373,6 +373,7 @@ CREATE TABLE congeeffectue (
                                nombrejourspris NUMERIC(5,2)
 );
 
+
 -- Vue des congés validés (demandes au statut "Validée")
 CREATE OR REPLACE VIEW v_conges_valides AS
 SELECT
@@ -587,6 +588,86 @@ CREATE INDEX idx_employe_cnaps ON employe(numerocnaps);
 CREATE INDEX idx_employe_ostie ON employe(numeroostie);
 
 -- ===========================================================
+-- PARTIE X : GESTION DES COMPÉTENCES
+-- ===========================================================
+
+-- Catégories de compétences (techniques, comportementales, management, ...)
+CREATE TABLE categoriecompetence (
+    id SERIAL PRIMARY KEY,
+    libelle VARCHAR(100) NOT NULL UNIQUE,
+    description TEXT
+);
+
+-- Référentiel des compétences de l'entreprise
+CREATE TABLE competence (
+    id SERIAL PRIMARY KEY,
+    code VARCHAR(50) NOT NULL UNIQUE,
+    libelle VARCHAR(150) NOT NULL,
+    description TEXT,
+    idcategorie INT REFERENCES categoriecompetence(id)
+);
+
+-- Niveaux de compétence (Débutant, Intermédiaire, Avancé, Expert, ...)
+CREATE TABLE niveaucompetence (
+    id SERIAL PRIMARY KEY,
+    code VARCHAR(20) NOT NULL UNIQUE,     -- ex: N1, N2
+    libelle VARCHAR(50) NOT NULL,         -- ex: Débutant, Avancé
+    ordre INT NOT NULL                    -- ordre croissant de maîtrise
+);
+
+-- Compétences attendues par profil de poste
+CREATE TABLE profilcompetence (
+    id SERIAL PRIMARY KEY,
+    idprofil INT NOT NULL REFERENCES profil(id),
+    idcompetence INT NOT NULL REFERENCES competence(id),
+    idniveau_cible INT REFERENCES niveaucompetence(id),
+    poids NUMERIC(5,2) DEFAULT 1,         -- importance de la compétence dans le match
+    estobligatoire BOOLEAN DEFAULT FALSE,
+    CONSTRAINT uk_profil_comp UNIQUE (idprofil, idcompetence)
+);
+
+-- Compétences détenues / évaluées pour les employés
+CREATE TABLE employecompetence (
+    id SERIAL PRIMARY KEY,
+    idemploye INT NOT NULL REFERENCES employe(id),
+    idcompetence INT NOT NULL REFERENCES competence(id),
+    idniveau_actuel INT REFERENCES niveaucompetence(id),
+    source VARCHAR(50),                   -- 'manager', 'auto', 'test', ...
+    dateevaluation DATE NOT NULL DEFAULT CURRENT_DATE,
+    commentaire TEXT,
+    CONSTRAINT uk_employe_comp UNIQUE (idemploye, idcompetence)
+);
+
+-- Formations (catalogue)
+CREATE TABLE formation (
+    id SERIAL PRIMARY KEY,
+    code VARCHAR(50) NOT NULL UNIQUE,
+    libelle VARCHAR(150) NOT NULL,
+    description TEXT,
+    duree_heures NUMERIC(5,2),
+    fournisseur VARCHAR(150),             -- organisme, interne / externe
+    cout NUMERIC(12,2)
+);
+
+-- Lien formations <-> compétences ciblées
+CREATE TABLE formationcompetence (
+    id SERIAL PRIMARY KEY,
+    idformation INT NOT NULL REFERENCES formation(id),
+    idcompetence INT NOT NULL REFERENCES competence(id),
+    idniveau_cible INT REFERENCES niveaucompetence(id),
+    CONSTRAINT uk_formation_comp UNIQUE (idformation, idcompetence)
+);
+
+-- Index pour la gestion des compétences
+CREATE INDEX idx_competence_code ON competence(code);
+CREATE INDEX idx_employecompetence_employe ON employecompetence(idemploye);
+CREATE INDEX idx_employecompetence_competence ON employecompetence(idcompetence);
+CREATE INDEX idx_profilcompetence_profil ON profilcompetence(idprofil);
+CREATE INDEX idx_profilcompetence_competence ON profilcompetence(idcompetence);
+CREATE INDEX idx_formationcompetence_formation ON formationcompetence(idformation);
+CREATE INDEX idx_formationcompetence_competence ON formationcompetence(idcompetence);
+
+-- ===========================================================
 -- PARTIE 8 : VUE COMPLÈTE POUR BULLETIN DE PAIE
 -- ===========================================================
 
@@ -649,6 +730,120 @@ INSERT INTO categoriepersonnel (nom, description) VALUES
                                                       ('Agent de Maîtrise', 'Encadrement intermédiaire'),
                                                       ('Cadre', 'Fonctions de gestion et responsabilité stratégique'),
                                                       ('Dirigeant', 'Niveau le plus élevé de responsabilité');
+
+-- Catégories de compétences
+INSERT INTO categoriecompetence (libelle, description) VALUES
+    ('Technique', 'Compétences techniques et métiers (développement, infrastructure, etc.)'),
+    ('Comportementale', 'Soft skills, communication, travail en équipe'),
+    ('Management', 'Pilotage, leadership, gestion d''équipe');
+
+-- Niveaux de compétences
+INSERT INTO niveaucompetence (code, libelle, ordre) VALUES
+    ('N1', 'Débutant', 1),
+    ('N2', 'Intermédiaire', 2),
+    ('N3', 'Avancé', 3),
+    ('N4', 'Expert', 4);
+
+-- Référentiel de compétences
+INSERT INTO competence (code, libelle, description, idcategorie) VALUES
+    ('JAVA_BACK', 'Développement Java backend', 'Maîtrise de Java, Spring, JPA',
+        (SELECT id FROM categoriecompetence WHERE libelle = 'Technique')),
+    ('FRONTEND_WEB', 'Développement Frontend Web', 'HTML/CSS/JS, Vue.js ou frameworks similaires',
+        (SELECT id FROM categoriecompetence WHERE libelle = 'Technique')),
+    ('GESTION_RH', 'Gestion RH', 'Processus RH, paie, congés, entretiens',
+        (SELECT id FROM categoriecompetence WHERE libelle = 'Technique')),
+    ('MANAGEMENT_EQUIPE', 'Management d''équipe', 'Animation, fixation d''objectifs, feedback',
+        (SELECT id FROM categoriecompetence WHERE libelle = 'Management')),
+    ('COMMUNICATION', 'Communication', 'Communication écrite et orale, relation client',
+        (SELECT id FROM categoriecompetence WHERE libelle = 'Comportementale'));
+
+-- Formations
+INSERT INTO formation (code, libelle, description, duree_heures, fournisseur, cout) VALUES
+    ('FORM_JAVA', 'Perfectionnement Java & Spring', 'Approfondissement des concepts Java et Spring Boot', 21, 'Interne', 0),
+    ('FORM_FRONT', 'Frontend moderne avec Vue.js', 'Développement d''interfaces modernes avec Vue.js', 14, 'Interne', 0),
+    ('FORM_RH', 'Gestion RH avancée', 'Processus RH, paie, congés et indicateurs', 14, 'Organisme externe', 500000),
+    ('FORM_MGMT', 'Leadership et Management d''équipe', 'Développer le leadership et la gestion d''équipe', 21, 'Organisme externe', 750000);
+
+-- Formations <-> compétences
+INSERT INTO formationcompetence (idformation, idcompetence, idniveau_cible) VALUES
+    ((SELECT id FROM formation WHERE code = 'FORM_JAVA'),
+     (SELECT id FROM competence WHERE code = 'JAVA_BACK'),
+     (SELECT id FROM niveaucompetence WHERE code = 'N3')),
+    ((SELECT id FROM formation WHERE code = 'FORM_FRONT'),
+     (SELECT id FROM competence WHERE code = 'FRONTEND_WEB'),
+     (SELECT id FROM niveaucompetence WHERE code = 'N3')),
+    ((SELECT id FROM formation WHERE code = 'FORM_RH'),
+     (SELECT id FROM competence WHERE code = 'GESTION_RH'),
+     (SELECT id FROM niveaucompetence WHERE code = 'N3')),
+    ((SELECT id FROM formation WHERE code = 'FORM_MGMT'),
+     (SELECT id FROM competence WHERE code = 'MANAGEMENT_EQUIPE'),
+     (SELECT id FROM niveaucompetence WHERE code = 'N3'));
+
+-- Compétences évaluées pour 4 employés (suppose que les employés 1..4 existent déjà)
+
+-- Employé 1 : développeur backend
+INSERT INTO employecompetence (idemploye, idcompetence, idniveau_actuel, source, commentaire)
+VALUES
+    (1,
+     (SELECT id FROM competence WHERE code = 'JAVA_BACK'),
+     (SELECT id FROM niveaucompetence WHERE code = 'N4'),
+     'manager', 'Excellent niveau en Java backend'),
+    (1,
+     (SELECT id FROM competence WHERE code = 'FRONTEND_WEB'),
+     (SELECT id FROM niveaucompetence WHERE code = 'N2'),
+     'manager', 'Peut intervenir ponctuellement sur le frontend'),
+    (1,
+     (SELECT id FROM competence WHERE code = 'COMMUNICATION'),
+     (SELECT id FROM niveaucompetence WHERE code = 'N3'),
+     'manager', 'Bon communicant avec l''équipe');
+
+-- Employé 2 : profil frontend
+INSERT INTO employecompetence (idemploye, idcompetence, idniveau_actuel, source, commentaire)
+VALUES
+    (2,
+     (SELECT id FROM competence WHERE code = 'FRONTEND_WEB'),
+     (SELECT id FROM niveaucompetence WHERE code = 'N4'),
+     'manager', 'Très bon niveau en développement frontend'),
+    (2,
+     (SELECT id FROM competence WHERE code = 'JAVA_BACK'),
+     (SELECT id FROM niveaucompetence WHERE code = 'N2'),
+     'manager', 'Bases en Java backend'),
+    (2,
+     (SELECT id FROM competence WHERE code = 'COMMUNICATION'),
+     (SELECT id FROM niveaucompetence WHERE code = 'N3'),
+     'manager', 'Bonne communication avec les clients internes');
+
+-- Employé 3 : responsable RH
+INSERT INTO employecompetence (idemploye, idcompetence, idniveau_actuel, source, commentaire)
+VALUES
+    (3,
+     (SELECT id FROM competence WHERE code = 'GESTION_RH'),
+     (SELECT id FROM niveaucompetence WHERE code = 'N4'),
+     'manager', 'Très bon niveau en gestion RH'),
+    (3,
+     (SELECT id FROM competence WHERE code = 'MANAGEMENT_EQUIPE'),
+     (SELECT id FROM niveaucompetence WHERE code = 'N3'),
+     'manager', 'Gère une petite équipe RH'),
+    (3,
+     (SELECT id FROM competence WHERE code = 'COMMUNICATION'),
+     (SELECT id FROM niveaucompetence WHERE code = 'N3'),
+     'manager', 'Bonne communication transversale');
+
+-- Employé 4 : manager technique
+INSERT INTO employecompetence (idemploye, idcompetence, idniveau_actuel, source, commentaire)
+VALUES
+    (4,
+     (SELECT id FROM competence WHERE code = 'JAVA_BACK'),
+     (SELECT id FROM niveaucompetence WHERE code = 'N3'),
+     'manager', 'Solide en Java mais intervient moins dans le code'),
+    (4,
+     (SELECT id FROM competence WHERE code = 'MANAGEMENT_EQUIPE'),
+     (SELECT id FROM niveaucompetence WHERE code = 'N4'),
+     'manager', 'Manager expérimenté d''une équipe technique'),
+    (4,
+     (SELECT id FROM competence WHERE code = 'COMMUNICATION'),
+     (SELECT id FROM niveaucompetence WHERE code = 'N3'),
+     'manager', 'Capacité à expliquer des sujets techniques aux métiers');
 
 -- Types de contrat
 INSERT INTO typecontrat (libelle) VALUES
@@ -744,6 +939,37 @@ INSERT INTO profil (nom) VALUES
                            ('Comptable'),
                            ('Commercial'),
                            ('Ressources Humaines');
+
+-- Compétences attendues par profil (profilcompetence)
+-- Profil Développeur : Java backend fort, frontend correct, bonne communication
+INSERT INTO profilcompetence (idprofil, idcompetence, idniveau_cible, poids, estobligatoire) VALUES
+  ((SELECT id FROM profil WHERE nom='Développeur'),
+   (SELECT id FROM competence WHERE code='JAVA_BACK'),
+   (SELECT id FROM niveaucompetence WHERE code='N3'),
+   1.5, TRUE),
+  ((SELECT id FROM profil WHERE nom='Développeur'),
+   (SELECT id FROM competence WHERE code='FRONTEND_WEB'),
+   (SELECT id FROM niveaucompetence WHERE code='N2'),
+   1.0, FALSE),
+  ((SELECT id FROM profil WHERE nom='Développeur'),
+   (SELECT id FROM competence WHERE code='COMMUNICATION'),
+   (SELECT id FROM niveaucompetence WHERE code='N2'),
+   1.0, TRUE);
+
+-- Profil Ressources Humaines : forte compétence RH, management et communication
+INSERT INTO profilcompetence (idprofil, idcompetence, idniveau_cible, poids, estobligatoire) VALUES
+  ((SELECT id FROM profil WHERE nom='Ressources Humaines'),
+   (SELECT id FROM competence WHERE code='GESTION_RH'),
+   (SELECT id FROM niveaucompetence WHERE code='N3'),
+   1.5, TRUE),
+  ((SELECT id FROM profil WHERE nom='Ressources Humaines'),
+   (SELECT id FROM competence WHERE code='MANAGEMENT_EQUIPE'),
+   (SELECT id FROM niveaucompetence WHERE code='N2'),
+   1.2, TRUE),
+  ((SELECT id FROM profil WHERE nom='Ressources Humaines'),
+   (SELECT id FROM competence WHERE code='COMMUNICATION'),
+   (SELECT id FROM niveaucompetence WHERE code='N3'),
+   1.0, TRUE);
 
 -- Types d'annonce
 INSERT INTO typeannonce (libelle) VALUES

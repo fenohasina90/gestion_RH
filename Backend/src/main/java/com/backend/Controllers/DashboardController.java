@@ -114,6 +114,23 @@ public class DashboardController {
         turnover.put("taux", tauxTurnover);
         result.put("turnover", turnover);
 
+        // Turnover par département (année en cours)
+        List<Map<String, Object>> turnoverParDepartement = jdbcTemplate.queryForList(
+                "SELECT COALESCE(d.nom,'Non affecté') AS departement, " +
+                        "COUNT(*) FILTER (WHERE EXTRACT(YEAR FROM e.datedembauche) = ?) AS embauches, " +
+                        "COUNT(*) FILTER (WHERE c.datefin IS NOT NULL AND EXTRACT(YEAR FROM c.datefin) = ?) AS departures, " +
+                        "COUNT(DISTINCT e.id) AS effectif, " +
+                        "CASE WHEN COUNT(DISTINCT e.id) = 0 THEN 0 " +
+                        "     ELSE ROUND( (COUNT(*) FILTER (WHERE c.datefin IS NOT NULL AND EXTRACT(YEAR FROM c.datefin) = ?) * 100.0) / COUNT(DISTINCT e.id), 2) END AS taux_departements " +
+                        "FROM employe e " +
+                        "LEFT JOIN departement d ON d.id = e.iddept " +
+                        "LEFT JOIN contrat c ON c.idemploye = e.id " +
+                        "GROUP BY d.nom " +
+                        "ORDER BY d.nom",
+                y, y, y
+        );
+        result.put("turnoverParDepartement", turnoverParDepartement);
+
         // Absentéisme sur le mois donné (basé sur feuilletemps + detailfeuilletemps)
         // Hypothèse : une journée marquée estabsent = TRUE correspond à 8 heures d'absence
         Map<String, Object> absenteisme = new HashMap<>();
@@ -131,6 +148,27 @@ public class DashboardController {
         absenteisme.put("nbAbsences", absRow.get("nb_absences"));
         absenteisme.put("employesTouches", absRow.get("employes_touches"));
         result.put("absenteisme", absenteisme);
+
+        // Absentéisme par département (mois/année) avec taux d'absentéisme
+        List<Map<String, Object>> absenteismeParDepartement = jdbcTemplate.queryForList(
+                "SELECT COALESCE(d.nom,'Non affecté') AS departement, " +
+                        "COALESCE(SUM(CASE WHEN df.estabsent THEN 8 ELSE 0 END), 0) AS heures_absence, " +
+                        "COUNT(*) FILTER (WHERE df.estabsent) AS nb_absences, " +
+                        "COUNT(DISTINCT ft.idemploye) FILTER (WHERE df.estabsent) AS employes_touches, " +
+                        "COALESCE(SUM(ft.jourstravailles),0) AS jours_trav, " +
+                        "COALESCE(SUM(ft.absences),0) AS jours_abs, " +
+                        "CASE WHEN (COALESCE(SUM(ft.jourstravailles),0) + COALESCE(SUM(ft.absences),0)) = 0 THEN 0 " +
+                        "     ELSE ROUND(COALESCE(SUM(ft.absences),0) * 100.0 / (COALESCE(SUM(ft.jourstravailles),0) + COALESCE(SUM(ft.absences),0)), 2) END AS taux_absence " +
+                        "FROM feuilletemps ft " +
+                        "JOIN employe e ON e.id = ft.idemploye " +
+                        "LEFT JOIN departement d ON d.id = e.iddept " +
+                        "JOIN detailfeuilletemps df ON df.idfeuilletemps = ft.id " +
+                        "WHERE ft.mois = ? AND ft.annee = ? " +
+                        "GROUP BY d.nom " +
+                        "ORDER BY d.nom",
+                m, y
+        );
+        result.put("absenteismeParDepartement", absenteismeParDepartement);
 
         // Ancienneté moyenne
         Double ancienneteMoyenne = jdbcTemplate.queryForObject(

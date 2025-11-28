@@ -63,6 +63,17 @@
                     </div>
                     <span class="active-indicator"></span>
                 </router-link>
+                <router-link to="/dashboard/competences" class="nav-item simple" :class="{ active: isActiveExact('/dashboard/competences') }">
+                    <div class="nav-content">
+                        <span class="nav-icon">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-3.5L6 21l1.5-7.5L2 9h7z"></path>
+                            </svg>
+                        </span>
+                        <span class="nav-label">Compétences</span>
+                    </div>
+                    <span class="active-indicator"></span>
+                </router-link>
             </div>
 
             <!-- Section Annonces -->

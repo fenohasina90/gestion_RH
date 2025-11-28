@@ -157,6 +157,62 @@
             </table>
           </div>
         </div>
+
+        <div class="tables-grid">
+          <div class="table-card">
+            <div class="table-title">Turnover par département ({{ annee }})</div>
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Département</th>
+                  <th class="right">Effectif</th>
+                  <th class="right">Embauches</th>
+                  <th class="right">Départs</th>
+                  <th class="right">Taux départs (%)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-if="!data.turnoverParDepartement || data.turnoverParDepartement.length === 0">
+                  <td colspan="5">Aucune donnée de turnover par département</td>
+                </tr>
+                <tr v-for="(d,i) in data.turnoverParDepartement" :key="i">
+                  <td>{{ d.departement }}</td>
+                  <td class="right">{{ d.effectif }}</td>
+                  <td class="right">{{ d.embauches }}</td>
+                  <td class="right">{{ d.departures }}</td>
+                  <td class="right">{{ fmtNum(d.taux_departements) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="table-card">
+            <div class="table-title">Absentéisme par département ({{ moisLabel(mois) }} {{ annee }})</div>
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Département</th>
+                  <th class="right">Heures d'absence</th>
+                  <th class="right">Nb absences</th>
+                  <th class="right">Employés touchés</th>
+                  <th class="right">Taux d'absentéisme (%)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-if="!data.absenteismeParDepartement || data.absenteismeParDepartement.length === 0">
+                  <td colspan="5">Aucune donnée d'absentéisme par département</td>
+                </tr>
+                <tr v-for="(d,i) in data.absenteismeParDepartement" :key="i">
+                  <td>{{ d.departement }}</td>
+                  <td class="right">{{ fmtNum(d.heures_absence) }}</td>
+                  <td class="right">{{ d.nb_absences }}</td>
+                  <td class="right">{{ d.employes_touches }}</td>
+                  <td class="right">{{ fmtNum(d.taux_absence) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
   </div>

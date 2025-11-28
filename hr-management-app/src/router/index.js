@@ -53,6 +53,8 @@ import CritereAdd from '../views/CritereAdd.vue'
 import TodayAttendanceView from '../views/attendance/TodayAttendanceView.vue'
 import ManualEntryView from '../views/attendance/ManualEntryView.vue'
 // Day detail view will be lazy-loaded
+// Tableau de bord compétences
+import CompetenceDashboardView from '../views/CompetenceDashboardView.vue'
 
 const routes = [
   // Groupe des pages publiques client avec sidebar dédié
@@ -113,6 +115,11 @@ const routes = [
     path: '/dashboard/performance',
     name: 'PerformanceDashboard',
     component: () => import('../views/PerformanceDashboardView.vue')
+  },
+  {
+    path: '/dashboard/competences',
+    name: 'CompetenceDashboard',
+    component: CompetenceDashboardView
   },
   {
     path: '/login',

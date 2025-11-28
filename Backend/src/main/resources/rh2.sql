@@ -99,6 +99,20 @@ CREATE TABLE employe (
                          matricule VARCHAR(50) UNIQUE
 );
 
+CREATE TABLE genre (
+    id SERIAL PRIMARY KEY,
+    code CHAR(1) NOT NULL UNIQUE,     -- 'M', 'F', 'A'
+    libelle VARCHAR(20) NOT NULL      -- 'Homme', 'Femme', 'Autre'
+);
+
+INSERT INTO genre (code, libelle) VALUES
+    ('M', 'Homme'),
+    ('F', 'Femme'),
+    ('A', 'Autre');
+
+ALTER TABLE employe
+    ADD COLUMN idgenre INT REFERENCES genre(id);
+
 CREATE TABLE candidatemploye (
                                  id SERIAL PRIMARY KEY,
                                  idcandidat INT REFERENCES candidat(id),

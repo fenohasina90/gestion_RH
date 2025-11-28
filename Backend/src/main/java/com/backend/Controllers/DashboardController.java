@@ -58,6 +58,16 @@ public class DashboardController {
         );
         result.put("effectifParCategorie", effectifParCategorie);
 
+        // Effectifs par genre (Homme / Femme / Autre)
+        List<Map<String, Object>> effectifParGenre = jdbcTemplate.queryForList(
+                "SELECT COALESCE(g.libelle, 'Non renseigné') AS label, COUNT(e.id) AS value " +
+                "FROM employe e " +
+                "LEFT JOIN genre g ON g.id = e.idgenre " +
+                "GROUP BY g.libelle " +
+                "ORDER BY g.libelle"
+        );
+        result.put("effectifParGenre", effectifParGenre);
+
         // Effectifs par type de contrat (contrats en cours)
         List<Map<String, Object>> effectifParTypeContrat = jdbcTemplate.queryForList(
                 "SELECT tc.libelle AS label, COUNT(c.id) AS value " +

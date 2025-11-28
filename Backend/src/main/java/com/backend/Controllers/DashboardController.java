@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -58,6 +59,16 @@ public class DashboardController {
         );
         result.put("effectifParCategorie", effectifParCategorie);
 
+        // Effectifs par genre (Homme / Femme / Autre)
+        List<Map<String, Object>> effectifParGenre = jdbcTemplate.queryForList(
+                "SELECT COALESCE(g.libelle, 'Non renseigné') AS label, COUNT(e.id) AS value " +
+                "FROM employe e " +
+                "LEFT JOIN genre g ON g.id = e.idgenre " +
+                "GROUP BY g.libelle " +
+                "ORDER BY g.libelle"
+        );
+        result.put("effectifParGenre", effectifParGenre);
+
         // Effectifs par type de contrat (contrats en cours)
         List<Map<String, Object>> effectifParTypeContrat = jdbcTemplate.queryForList(
                 "SELECT tc.libelle AS label, COUNT(c.id) AS value " +
@@ -103,27 +114,61 @@ public class DashboardController {
         turnover.put("taux", tauxTurnover);
         result.put("turnover", turnover);
 
-        // Absentéisme sur le mois donné
+        // Turnover par département (année en cours)
+        List<Map<String, Object>> turnoverParDepartement = jdbcTemplate.queryForList(
+                "SELECT COALESCE(d.nom,'Non affecté') AS departement, " +
+                        "COUNT(*) FILTER (WHERE EXTRACT(YEAR FROM e.datedembauche) = ?) AS embauches, " +
+                        "COUNT(*) FILTER (WHERE c.datefin IS NOT NULL AND EXTRACT(YEAR FROM c.datefin) = ?) AS departures, " +
+                        "COUNT(DISTINCT e.id) AS effectif, " +
+                        "CASE WHEN COUNT(DISTINCT e.id) = 0 THEN 0 " +
+                        "     ELSE ROUND( (COUNT(*) FILTER (WHERE c.datefin IS NOT NULL AND EXTRACT(YEAR FROM c.datefin) = ?) * 100.0) / COUNT(DISTINCT e.id), 2) END AS taux_departements " +
+                        "FROM employe e " +
+                        "LEFT JOIN departement d ON d.id = e.iddept " +
+                        "LEFT JOIN contrat c ON c.idemploye = e.id " +
+                        "GROUP BY d.nom " +
+                        "ORDER BY d.nom",
+                y, y, y
+        );
+        result.put("turnoverParDepartement", turnoverParDepartement);
+
+        // Absentéisme sur le mois donné (basé sur feuilletemps + detailfeuilletemps)
+        // Hypothèse : une journée marquée estabsent = TRUE correspond à 8 heures d'absence
         Map<String, Object> absenteisme = new HashMap<>();
-        Double heuresAbsence = jdbcTemplate.queryForObject(
-                "SELECT COALESCE(SUM(nombreheures),0) FROM absence " +
-                        "WHERE EXTRACT(MONTH FROM datedebut) = ? AND EXTRACT(YEAR FROM datedebut) = ?",
-                Double.class, m, y
+        Map<String, Object> absRow = jdbcTemplate.queryForMap(
+                "SELECT " +
+                        "COALESCE(SUM(CASE WHEN df.estabsent THEN 8 ELSE 0 END), 0) AS heures_absence, " +
+                        "COUNT(*) FILTER (WHERE df.estabsent) AS nb_absences, " +
+                        "COUNT(DISTINCT ft.idemploye) FILTER (WHERE df.estabsent) AS employes_touches " +
+                        "FROM feuilletemps ft " +
+                        "JOIN detailfeuilletemps df ON df.idfeuilletemps = ft.id " +
+                        "WHERE ft.mois = ? AND ft.annee = ?",
+                m, y
         );
-        Integer nbAbsences = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM absence " +
-                        "WHERE EXTRACT(MONTH FROM datedebut) = ? AND EXTRACT(YEAR FROM datedebut) = ?",
-                Integer.class, m, y
-        );
-        Integer employesAvecAbsence = jdbcTemplate.queryForObject(
-                "SELECT COUNT(DISTINCT idemploye) FROM absence " +
-                        "WHERE EXTRACT(MONTH FROM datedebut) = ? AND EXTRACT(YEAR FROM datedebut) = ?",
-                Integer.class, m, y
-        );
-        absenteisme.put("heuresAbsence", heuresAbsence);
-        absenteisme.put("nbAbsences", nbAbsences);
-        absenteisme.put("employesTouches", employesAvecAbsence);
+        absenteisme.put("heuresAbsence", absRow.get("heures_absence"));
+        absenteisme.put("nbAbsences", absRow.get("nb_absences"));
+        absenteisme.put("employesTouches", absRow.get("employes_touches"));
         result.put("absenteisme", absenteisme);
+
+        // Absentéisme par département (mois/année) avec taux d'absentéisme
+        List<Map<String, Object>> absenteismeParDepartement = jdbcTemplate.queryForList(
+                "SELECT COALESCE(d.nom,'Non affecté') AS departement, " +
+                        "COALESCE(SUM(CASE WHEN df.estabsent THEN 8 ELSE 0 END), 0) AS heures_absence, " +
+                        "COUNT(*) FILTER (WHERE df.estabsent) AS nb_absences, " +
+                        "COUNT(DISTINCT ft.idemploye) FILTER (WHERE df.estabsent) AS employes_touches, " +
+                        "COALESCE(SUM(ft.jourstravailles),0) AS jours_trav, " +
+                        "COALESCE(SUM(ft.absences),0) AS jours_abs, " +
+                        "CASE WHEN (COALESCE(SUM(ft.jourstravailles),0) + COALESCE(SUM(ft.absences),0)) = 0 THEN 0 " +
+                        "     ELSE ROUND(COALESCE(SUM(ft.absences),0) * 100.0 / (COALESCE(SUM(ft.jourstravailles),0) + COALESCE(SUM(ft.absences),0)), 2) END AS taux_absence " +
+                        "FROM feuilletemps ft " +
+                        "JOIN employe e ON e.id = ft.idemploye " +
+                        "LEFT JOIN departement d ON d.id = e.iddept " +
+                        "JOIN detailfeuilletemps df ON df.idfeuilletemps = ft.id " +
+                        "WHERE ft.mois = ? AND ft.annee = ? " +
+                        "GROUP BY d.nom " +
+                        "ORDER BY d.nom",
+                m, y
+        );
+        result.put("absenteismeParDepartement", absenteismeParDepartement);
 
         // Ancienneté moyenne
         Double ancienneteMoyenne = jdbcTemplate.queryForObject(
@@ -174,5 +219,132 @@ public class DashboardController {
         result.put("congesFormation", congesFormation);
 
         return ResponseEntity.ok(result);
+    }
+
+    /**
+     * Performance par employé (ponctualité + productivité) basée sur feuilletemps.
+     */
+    @GetMapping("/performance/employes")
+    public ResponseEntity<?> getPerformanceEmployes(
+            @RequestParam(required = false) Integer mois,
+            @RequestParam(required = false) Integer annee
+    ) {
+        LocalDate now = LocalDate.now();
+        int m = (mois != null) ? mois : now.getMonthValue();
+        int y = (annee != null) ? annee : now.getYear();
+
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                "SELECT e.id, e.matricule, e.nom, e.prenom, COALESCE(d.nom,'Non affecté') AS departement, " +
+                        "COALESCE(SUM(ft.jourstravailles),0) AS jours_trav, " +
+                        "COALESCE(SUM(ft.heuressupplementaires),0) AS heures_sup, " +
+                        "COALESCE(SUM(ft.absences),0) AS jours_abs, " +
+                        "COALESCE(SUM(ft.retards),0) AS retards " +
+                        "FROM employe e " +
+                        "LEFT JOIN departement d ON d.id = e.iddept " +
+                        "LEFT JOIN feuilletemps ft ON ft.idemploye = e.id AND ft.mois = ? AND ft.annee = ? " +
+                        "GROUP BY e.id, e.matricule, e.nom, e.prenom, d.nom " +
+                        "ORDER BY d.nom, e.nom, e.prenom",
+                m, y
+        );
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Map<String, Object> row : rows) {
+            Map<String, Object> item = new HashMap<>(row);
+
+            double joursTrav = toDouble(row.get("jours_trav"));
+            double joursAbs = toDouble(row.get("jours_abs"));
+            double retards = toDouble(row.get("retards"));
+            double heuresSup = toDouble(row.get("heures_sup"));
+
+            // Score de ponctualité sur 100 : pénalité par jour d'absence et par retard
+            double scorePonctualite = 100.0 - (joursAbs * 5.0) - (retards * 2.0);
+            if (scorePonctualite < 0) scorePonctualite = 0;
+
+            // Score de "productivité" simple basé sur jours travaillés + heures sup
+            double scoreProductiviteBase = joursTrav + (heuresSup * 0.5);
+            // Normalisation grossière sur 100 (en supposant qu'un bon mois ~22 jours + 20h sup)
+            double scoreProductivite = (scoreProductiviteBase / (22.0 + 20.0 * 0.5)) * 100.0;
+            if (scoreProductivite > 100) scoreProductivite = 100;
+
+            double scoreGlobal = (0.6 * scorePonctualite) + (0.4 * scoreProductivite);
+
+            item.put("scorePonctualite", scorePonctualite);
+            item.put("scoreProductivite", scoreProductivite);
+            item.put("scoreGlobal", scoreGlobal);
+
+            result.add(item);
+        }
+
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * Performance agrégée par département (moyenne des scores des employés).
+     */
+    @GetMapping("/performance/departements")
+    public ResponseEntity<?> getPerformanceDepartements(
+            @RequestParam(required = false) Integer mois,
+            @RequestParam(required = false) Integer annee
+    ) {
+        // On réutilise la logique de /performance/employes pour ne pas dupliquer les formules
+        ResponseEntity<?> empResp = getPerformanceEmployes(mois, annee);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> employes = (List<Map<String, Object>>) empResp.getBody();
+
+        Map<String, Map<String, Object>> agg = new HashMap<>();
+
+        if (employes != null) {
+            for (Map<String, Object> e : employes) {
+                String dept = (String) e.getOrDefault("departement", "Non affecté");
+                Map<String, Object> d = agg.computeIfAbsent(dept, k -> {
+                    Map<String, Object> m2 = new HashMap<>();
+                    m2.put("departement", k);
+                    m2.put("nbEmployes", 0);
+                    m2.put("sumPonctualite", 0.0);
+                    m2.put("sumProductivite", 0.0);
+                    m2.put("sumGlobal", 0.0);
+                    return m2;
+                });
+
+                int nbEmp = (int) d.get("nbEmployes") + 1;
+                double sumP = toDouble(d.get("sumPonctualite")) + toDouble(e.get("scorePonctualite"));
+                double sumProd = toDouble(d.get("sumProductivite")) + toDouble(e.get("scoreProductivite"));
+                double sumG = toDouble(d.get("sumGlobal")) + toDouble(e.get("scoreGlobal"));
+
+                d.put("nbEmployes", nbEmp);
+                d.put("sumPonctualite", sumP);
+                d.put("sumProductivite", sumProd);
+                d.put("sumGlobal", sumG);
+            }
+        }
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Map<String, Object> d : agg.values()) {
+            int nbEmp = (int) d.get("nbEmployes");
+            double avgP = nbEmp > 0 ? toDouble(d.get("sumPonctualite")) / nbEmp : 0.0;
+            double avgProd = nbEmp > 0 ? toDouble(d.get("sumProductivite")) / nbEmp : 0.0;
+            double avgG = nbEmp > 0 ? toDouble(d.get("sumGlobal")) / nbEmp : 0.0;
+
+            Map<String, Object> out = new HashMap<>();
+            out.put("departement", d.get("departement"));
+            out.put("nbEmployes", nbEmp);
+            out.put("scorePonctualiteMoyen", avgP);
+            out.put("scoreProductiviteMoyen", avgProd);
+            out.put("scoreGlobalMoyen", avgG);
+
+            result.add(out);
+        }
+
+        return ResponseEntity.ok(result);
+    }
+
+    private double toDouble(Object v) {
+        if (v == null) return 0.0;
+        if (v instanceof Number) return ((Number) v).doubleValue();
+        try {
+            return Double.parseDouble(v.toString());
+        } catch (Exception e) {
+            return 0.0;
+        }
     }
 }

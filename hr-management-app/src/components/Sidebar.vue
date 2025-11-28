@@ -37,7 +37,7 @@
         </div>
 
         <nav class="sidebar-nav">
-            <!-- Section Tableau de bord RH -->
+            <!-- Section Tableaux de bord RH -->
             <div class="nav-section">
                 <router-link to="/dashboard/rh" class="nav-item simple" :class="{ active: isActiveExact('/dashboard/rh') }">
                     <div class="nav-content">
@@ -49,6 +49,17 @@
                             </svg>
                         </span>
                         <span class="nav-label">Tableau de bord RH</span>
+                    </div>
+                    <span class="active-indicator"></span>
+                </router-link>
+                <router-link to="/dashboard/performance" class="nav-item simple" :class="{ active: isActiveExact('/dashboard/performance') }">
+                    <div class="nav-content">
+                        <span class="nav-icon">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M4 19l4-9 4 6 4-10 4 13"></path>
+                            </svg>
+                        </span>
+                        <span class="nav-label">Performance</span>
                     </div>
                     <span class="active-indicator"></span>
                 </router-link>

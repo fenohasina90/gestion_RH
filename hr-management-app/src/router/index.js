@@ -110,6 +110,11 @@ const routes = [
     component: () => import('../views/RhDashboardView.vue')
   },
   {
+    path: '/dashboard/performance',
+    name: 'PerformanceDashboard',
+    component: () => import('../views/PerformanceDashboardView.vue')
+  },
+  {
     path: '/login',
     name: 'Login',
     component: LoginView

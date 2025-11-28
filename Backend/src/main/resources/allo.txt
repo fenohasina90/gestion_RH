@@ -1,0 +1,5 @@
+donne moi une prompt clair pour réaliser cette fonctionnalité
+
+A. Gestion du personnel  Fiche employé complète (identité, contact, poste, photo, etc.)  Suivi du contrat de travail (type, durée, période d’essai, renouvellement)  Historique des postes, promotions, mobilités  Gestion des documents RH (CIN, diplômes, attestations, etc.)
+
+vis à vis de la base de donnée

@@ -4,6 +4,14 @@ import { useAuthStore } from '../stores/auth'
 // Import des vues
 import LoginView from '../views/LoginView.vue'
 import RegisterView from '../views/RegisterView.vue'
+// Espace employé (self-service)
+import EmployeeLoginView from '../views/employee-self/EmployeeLoginView.vue'
+import EmployeeProfileView from '../views/employee-self/EmployeeProfileView.vue'
+import EmployeePayslipsView from '../views/employee-self/EmployeePayslipsView.vue'
+import EmployeeLeavesView from '../views/employee-self/EmployeeLeavesView.vue'
+import EmployeeLeaveBalanceView from '../views/employee-self/EmployeeLeaveBalanceView.vue'
+import EmployeeLeaveRequestView from '../views/employee-self/EmployeeLeaveRequestView.vue'
+import EmployeeMessagesView from '../views/employee-self/EmployeeMessagesView.vue'
 
 // Profils
 import ProfilesView from '../views/profiles/ProfilesView.vue'
@@ -31,6 +39,7 @@ import GoodInterviewsView from '../views/interviews/GoodInterviewsView.vue'
 // Contrats
 import ContractsView from '../views/contracts/ContractsView.vue'
 import CreateContractView from '../views/contracts/CreateContractView.vue'
+import RhMessagesView from '../views/RhMessagesView.vue'
 
 // Pages publiques
 import HomeView from '../views/public/HomeView.vue'
@@ -112,6 +121,11 @@ const routes = [
     component: () => import('../views/RhDashboardView.vue')
   },
   {
+    path: '/dashboard/rh/messages',
+    name: 'RhMessages',
+    component: RhMessagesView
+  },
+  {
     path: '/dashboard/performance',
     name: 'PerformanceDashboard',
     component: () => import('../views/PerformanceDashboardView.vue')
@@ -120,6 +134,49 @@ const routes = [
     path: '/dashboard/competences',
     name: 'CompetenceDashboard',
     component: CompetenceDashboardView
+  },
+  // Espace employé (self-service)
+  {
+    path: '/espace-employe/login',
+    name: 'EmployeeLogin',
+    component: EmployeeLoginView,
+    meta: { requiresAuth: false }
+  },
+  {
+    path: '/espace-employe/profil',
+    name: 'EmployeeProfile',
+    component: EmployeeProfileView,
+    meta: { requiresAuth: false }
+  },
+  {
+    path: '/espace-employe/bulletins',
+    name: 'EmployeePayslips',
+    component: EmployeePayslipsView,
+    meta: { requiresAuth: false }
+  },
+  {
+    path: '/espace-employe/conges',
+    name: 'EmployeeLeaves',
+    component: EmployeeLeavesView,
+    meta: { requiresAuth: false }
+  },
+  {
+    path: '/espace-employe/solde-conges',
+    name: 'EmployeeLeaveBalance',
+    component: EmployeeLeaveBalanceView,
+    meta: { requiresAuth: false }
+  },
+  {
+    path: '/espace-employe/demande-conge',
+    name: 'EmployeeLeaveRequest',
+    component: EmployeeLeaveRequestView,
+    meta: { requiresAuth: false }
+  },
+  {
+    path: '/espace-employe/messages',
+    name: 'EmployeeMessages',
+    component: EmployeeMessagesView,
+    meta: { requiresAuth: false }
   },
   {
     path: '/login',

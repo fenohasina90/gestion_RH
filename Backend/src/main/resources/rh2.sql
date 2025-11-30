@@ -110,8 +110,7 @@ INSERT INTO genre (code, libelle) VALUES
     ('F', 'Femme'),
     ('A', 'Autre');
 
-ALTER TABLE employe
-    ADD COLUMN idgenre INT REFERENCES genre(id);
+ALTER TABLE employe ADD COLUMN idgenre INT REFERENCES genre(id) DEFAULT 3;
 
 CREATE TABLE candidatemploye (
                                  id SERIAL PRIMARY KEY,
@@ -666,6 +665,23 @@ CREATE INDEX idx_profilcompetence_profil ON profilcompetence(idprofil);
 CREATE INDEX idx_profilcompetence_competence ON profilcompetence(idcompetence);
 CREATE INDEX idx_formationcompetence_formation ON formationcompetence(idformation);
 CREATE INDEX idx_formationcompetence_competence ON formationcompetence(idcompetence);
+
+-- ===========================================================
+-- PARTIE 7bis : MESSAGERIE RH SIMPLE
+-- ===========================================================
+
+CREATE TABLE IF NOT EXISTS message_rh (
+    id SERIAL PRIMARY KEY,
+    idemploye INT NOT NULL REFERENCES employe(id),
+    sujet VARCHAR(150) NOT NULL,
+    contenu TEXT NOT NULL,
+    reponse TEXT,
+    date_envoi TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    date_reponse TIMESTAMP,
+    lu BOOLEAN DEFAULT FALSE
+);
+
+CREATE INDEX IF NOT EXISTS idx_message_rh_employe ON message_rh(idemploye);
 
 -- ===========================================================
 -- PARTIE 8 : VUE COMPLÈTE POUR BULLETIN DE PAIE

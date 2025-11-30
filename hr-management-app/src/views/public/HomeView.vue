@@ -8,6 +8,7 @@
         </div>
         <div class="auth-buttons">
           <router-link to="/jobs" class="btn btn-outline">Voir les offres</router-link>
+          <router-link to="/espace-employe/login" class="btn btn-success">Espace employé</router-link>
           <template v-if="candidateAuthStore.isLoggedIn">
             <button v-if="candidateAuthStore.candidate" @click="$router.push('/mes-qcm')" class="btn btn-secondary">
               Mes QCM
@@ -62,6 +63,7 @@
           <ul>
             <li><router-link to="/jobs">Offres d'emploi</router-link></li>
             <li><router-link to="/dashboard">Espace admin</router-link></li>
+            <li><router-link to="/espace-employe/login">Espace employé</router-link></li>
           </ul>
         </div>
         <div class="footer-section">

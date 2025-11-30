@@ -52,6 +52,18 @@
                     </div>
                     <span class="active-indicator"></span>
                 </router-link>
+                <router-link to="/dashboard/rh/messages" class="nav-item simple" :class="{ active: isActiveExact('/dashboard/rh/messages') }">
+                    <div class="nav-content">
+                        <span class="nav-icon">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                                <path d="M8 10h8"></path>
+                            </svg>
+                        </span>
+                        <span class="nav-label">Messagerie RH</span>
+                    </div>
+                    <span class="active-indicator"></span>
+                </router-link>
                 <router-link to="/dashboard/performance" class="nav-item simple" :class="{ active: isActiveExact('/dashboard/performance') }">
                     <div class="nav-content">
                         <span class="nav-icon">

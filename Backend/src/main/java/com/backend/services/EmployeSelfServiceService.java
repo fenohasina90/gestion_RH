@@ -169,7 +169,7 @@ public class EmployeSelfServiceService {
         double nombreJoursOuvres = (double) jours; // simplification: tous les jours ouvrés
 
         Integer idStatutEnAttente = jdbcTemplate.queryForObject(
-                "SELECT id FROM statutdemande WHERE nom = 'En attente' LIMIT 1",
+                "SELECT id FROM statutdemande WHERE nom = 'En attente manager' LIMIT 1",
                 Integer.class
         );
 

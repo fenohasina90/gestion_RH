@@ -391,7 +391,7 @@ FROM demandeconge d
 JOIN employe e       ON e.id = d.idemploye
 JOIN typeconge tc    ON tc.id = d.idtypeconge
 JOIN statutdemande sd ON sd.id = d.idstatut
-WHERE sd.id = 2 OR lower(sd.nom) = 'validée';
+WHERE lower(sd.nom) = 'validé rh';
 
 -- ===========================================================
 -- PARTIE 4 : GESTION DU TEMPS ET PRÉSENCES
@@ -893,9 +893,18 @@ INSERT INTO typeconge (libelle, estremunere, description) VALUES
                                                               ('Congé formation', TRUE, 'Formation professionnelle'),
                                                               ('Congé sabbatique', FALSE, 'Longue période pour projet personnel');
 
--- Statuts des demandes
-INSERT INTO statutdemande (nom) VALUES
-                                    ('En attente'), ('Validée'), ('Refusée'), ('Annulée');
+-- Statuts des demandes (workflow Manager -> RH)
+
+UPDATE statutdemande SET nom = 'En attente manager' WHERE id = 1;
+UPDATE statutdemande SET nom = 'Validé manager' WHERE id = 2;
+UPDATE statutdemande SET nom = 'Refusé manager' WHERE id = 3;
+UPDATE statutdemande SET nom = 'En attente RH' WHERE id = 4;
+
+INSERT INTO statutdemande (nom) VALUES   
+    ('Validé RH'),
+    ('Refusé RH'),
+    ('Annulée');
+
 
 -- Types de pointage
 INSERT INTO typepointage (libelle) VALUES

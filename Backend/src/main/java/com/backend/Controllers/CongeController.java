@@ -225,7 +225,7 @@ public class CongeController {
         Statutdemande statut = null;
         Optional<Statutdemande> byId = statutdemandeRepository.findById(2);
         if (byId.isPresent()) statut = byId.get();
-        else statut = statutdemandeRepository.findByNomIgnoreCase("Validée").orElse(null);
+        else statut = statutdemandeRepository.findByNomIgnoreCase("Validé RH").orElse(null);
         if (statut != null) d.setIdstatut(statut);
 
         // Compute year and days taken
@@ -274,7 +274,7 @@ public class CongeController {
 
         // Resolve statut Rejetée (id=3 fallback to name search)
         Statutdemande statut = statutdemandeRepository.findById(3).orElseGet(() ->
-                statutdemandeRepository.findByNomIgnoreCase("Rejetée").orElse(null)
+                statutdemandeRepository.findByNomIgnoreCase("Refusé RH").orElse(null)
         );
         if (statut != null) d.setIdstatut(statut);
         demandecongeRepository.save(d);
@@ -287,7 +287,7 @@ public class CongeController {
             @RequestParam(required = false) Integer typeId,
             @RequestParam(required = false) Integer annee
     ) {
-        List<String> pendingNames = Arrays.asList("En attente", "Pending", "ATTENTE");
+        List<String> pendingNames = Arrays.asList("En attente RH", "Pending", "ATTENTE");
 
         Instant from;
         Instant to;

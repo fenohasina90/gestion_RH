@@ -12,6 +12,10 @@ import EmployeeLeavesView from '../views/employee-self/EmployeeLeavesView.vue'
 import EmployeeLeaveBalanceView from '../views/employee-self/EmployeeLeaveBalanceView.vue'
 import EmployeeLeaveRequestView from '../views/employee-self/EmployeeLeaveRequestView.vue'
 import EmployeeMessagesView from '../views/employee-self/EmployeeMessagesView.vue'
+// Espace manager
+import ManagerLoginView from '../views/manager/ManagerLoginView.vue'
+import ManagerLeaveRequestsView from '../views/manager/ManagerLeaveRequestsView.vue'
+import ManagerDashboardView from '../views/manager/ManagerDashboardView.vue'
 
 // Profils
 import ProfilesView from '../views/profiles/ProfilesView.vue'
@@ -176,6 +180,25 @@ const routes = [
     path: '/espace-employe/messages',
     name: 'EmployeeMessages',
     component: EmployeeMessagesView,
+    meta: { requiresAuth: false }
+  },
+  // Espace Manager
+  {
+    path: '/espace-manager/login',
+    name: 'ManagerLogin',
+    component: ManagerLoginView,
+    meta: { requiresAuth: false }
+  },
+  {
+    path: '/espace-manager/demandes-conge',
+    name: 'ManagerLeaveRequests',
+    component: ManagerLeaveRequestsView,
+    meta: { requiresAuth: false }
+  },
+  {
+    path: '/espace-manager/dashboard',
+    name: 'ManagerDashboard',
+    component: ManagerDashboardView,
     meta: { requiresAuth: false }
   },
   {

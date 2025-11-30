@@ -45,8 +45,8 @@ export default {
       const qcmKeepSidebar = ['/qcm/create', '/qcm/results', '/resultat-qcm']
       if (qcmKeepSidebar.includes(p)) return false
 
-      // Les pages de l'espace employé n'utilisent pas la sidebar RH globale
-      if (p.startsWith('/espace-employe')) return true
+      // Les pages de l'espace employé et manager n'utilisent pas la sidebar RH globale
+      if (p.startsWith('/espace-employe') || p.startsWith('/espace-manager')) return true
 
       return publicExact.includes(p) ||
              p.startsWith('/jobs/') ||

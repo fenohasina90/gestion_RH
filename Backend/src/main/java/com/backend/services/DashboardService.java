@@ -189,7 +189,7 @@ public class DashboardService {
                         "JOIN statutdemande sd ON sd.id = d.idstatut " +
                         "WHERE EXTRACT(YEAR FROM d.datedebut) = ? " +
                         "AND lower(tc.libelle) LIKE '%formation%' " +
-                        "AND (lower(sd.nom) = 'validée rh' OR lower(sd.nom) = 'validee rh')",
+                        "AND (lower(sd.nom) = 'Validé manager' OR lower(sd.nom) = 'Validé manager')",
                 y
         );
         result.put("congesFormation", congesFormation);

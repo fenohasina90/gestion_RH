@@ -44,6 +44,8 @@ import GoodInterviewsView from '../views/interviews/GoodInterviewsView.vue'
 import ContractsView from '../views/contracts/ContractsView.vue'
 import CreateContractView from '../views/contracts/CreateContractView.vue'
 import RhMessagesView from '../views/RhMessagesView.vue'
+import PayrollSettingsView from '../views/payroll/PayrollSettingsView.vue'
+import RhChatbotView from '../views/chat/RhChatbotView.vue'
 
 // Pages publiques
 import HomeView from '../views/public/HomeView.vue'
@@ -413,6 +415,18 @@ const routes = [
     path: '/paie/etat',
     name: 'EtatPaie',
     component: () => import('../views/payroll/EtatPaieView.vue')
+  }
+  ,
+  {
+    path: '/paie/parametres',
+    name: 'PayrollSettings',
+    component: PayrollSettingsView
+  }
+  ,
+  {
+    path: '/chat/rh',
+    name: 'RhChat',
+    component: RhChatbotView
   }
 ]
 

@@ -225,7 +225,7 @@ public class CongeController {
         Statutdemande statut = null;
         Optional<Statutdemande> byId = statutdemandeRepository.findById(2);
         if (byId.isPresent()) statut = byId.get();
-        else statut = statutdemandeRepository.findByNomIgnoreCase("Validé RH").orElse(null);
+        else statut = statutdemandeRepository.findByNomIgnoreCase("Validé manager").orElse(null);
         if (statut != null) d.setIdstatut(statut);
 
         // Compute year and days taken

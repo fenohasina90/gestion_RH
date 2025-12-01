@@ -11,6 +11,26 @@ CREATE TABLE IF NOT EXISTS parametrecotisation (
     datefin          DATE
 );
 
+-- 1.b) IRSA brackets parameters (progressive tax)
+CREATE TABLE IF NOT EXISTS parametre_irsa (
+    id        SERIAL PRIMARY KEY,
+    borne_min NUMERIC(12,2) NOT NULL,
+    borne_max NUMERIC(12,2),      -- NULL = no upper bound
+    taux      NUMERIC(5,2) NOT NULL, -- percentage
+    dateeffet DATE NOT NULL,
+    datefin   DATE
+);
+
+-- 1.c) Overtime coefficients parameters
+CREATE TABLE IF NOT EXISTS parametre_heures_sup (
+    id          SERIAL PRIMARY KEY,
+    code        VARCHAR(50) UNIQUE NOT NULL,  -- HS_NORMALE, HS_DIMANCHE, etc.
+    libelle     VARCHAR(100) NOT NULL,
+    coefficient NUMERIC(6,2) NOT NULL,        -- e.g. 1.30, 1.50
+    dateeffet   DATE NOT NULL,
+    datefin     DATE
+);
+
 -- 2) Seed parameters (CNAPS/OSTIE) with current effective rates
 -- Plafond salarial demandé: 8 * 3_500_000 Ar = 28_000_000 Ar
 DO $$
@@ -44,6 +64,28 @@ BEGIN
     END IF;
 END $$;
 
+-- 2.b) Seed default IRSA brackets if none active
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM parametre_irsa WHERE datefin IS NULL) THEN
+        INSERT INTO parametre_irsa (borne_min, borne_max, taux, dateeffet, datefin) VALUES
+        (     0, 350000,  0.00, CURRENT_DATE, NULL),
+        (350001, 400000,  5.00, CURRENT_DATE, NULL),
+        (400001, 500000, 10.00, CURRENT_DATE, NULL),
+        (500001, 600000, 15.00, CURRENT_DATE, NULL),
+        (600001,   NULL, 20.00, CURRENT_DATE, NULL);
+    END IF;
+END $$;
+
+-- 2.c) Seed default overtime coefficient if none active
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM parametre_heures_sup WHERE code = 'HS_NORMALE' AND datefin IS NULL) THEN
+        INSERT INTO parametre_heures_sup(code, libelle, coefficient, dateeffet, datefin)
+        VALUES ('HS_NORMALE', 'Heures supplémentaires normales', 1.30, CURRENT_DATE, NULL);
+    END IF;
+END $$;
+
 -- 3) Helper: get active rate row by libelle
 CREATE OR REPLACE FUNCTION get_active_param(lib TEXT)
 RETURNS parametrecotisation AS $$
@@ -58,41 +100,56 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- 4) IRSA progressive tax function (amount in Ariary per month)
+-- 3.b) Helper: get active overtime coefficient by code
+CREATE OR REPLACE FUNCTION get_coef_heures_sup(p_code TEXT)
+RETURNS NUMERIC AS $$
+DECLARE
+    coef NUMERIC;
+BEGIN
+  SELECT coefficient INTO coef
+  FROM parametre_heures_sup
+  WHERE code = p_code
+    AND dateeffet <= CURRENT_DATE
+    AND (datefin IS NULL OR datefin >= CURRENT_DATE)
+  ORDER BY dateeffet DESC
+  LIMIT 1;
+
+  RETURN COALESCE(coef, 1.30);
+END;
+$$ LANGUAGE plpgsql;
+
+-- 4) IRSA progressive tax function (amount in Ariary per month), based on parametre_irsa
 CREATE OR REPLACE FUNCTION calcul_irsa(montant NUMERIC)
 RETURNS NUMERIC AS $$
 DECLARE
-    restant NUMERIC := GREATEST(montant, 0);
-    imp NUMERIC := 0;
+    base NUMERIC := GREATEST(montant, 0);
+    total_impot NUMERIC := 0;
+    r RECORD;
+    tranche_montant NUMERIC;
 BEGIN
-    -- Brackets (Ariary/month)
-    -- 0 - 350_000 => 0%
-    IF restant <= 350000 THEN
+    IF base <= 0 THEN
         RETURN 0;
     END IF;
 
-    -- 350_001 - 400_000 => 5%
-    IF restant > 350000 THEN
-        imp := imp + LEAST(restant, 400000) - 350000;
-        imp := imp * 0.05;
-    END IF;
+    FOR r IN
+        SELECT *
+        FROM parametre_irsa
+        WHERE dateeffet <= CURRENT_DATE
+          AND (datefin IS NULL OR datefin >= CURRENT_DATE)
+        ORDER BY borne_min
+    LOOP
+        IF r.borne_max IS NULL THEN
+            tranche_montant := GREATEST(base - r.borne_min + 1, 0);
+        ELSE
+            tranche_montant := GREATEST(LEAST(base, r.borne_max) - r.borne_min + 1, 0);
+        END IF;
 
-    -- 400_001 - 500_000 => 10%
-    IF restant > 400000 THEN
-        imp := imp + (LEAST(restant, 500000) - 400000) * 0.10;
-    END IF;
+        IF tranche_montant > 0 THEN
+            total_impot := total_impot + tranche_montant * (r.taux / 100.0);
+        END IF;
+    END LOOP;
 
-    -- 500_001 - 600_000 => 15%
-    IF restant > 500000 THEN
-        imp := imp + (LEAST(restant, 600000) - 500000) * 0.15;
-    END IF;
-
-    -- > 600_000 => 20%
-    IF restant > 600000 THEN
-        imp := imp + (restant - 600000) * 0.20;
-    END IF;
-
-    RETURN GREATEST(imp, 0);
+    RETURN GREATEST(total_impot, 0);
 END;
 $$ LANGUAGE plpgsql;
 
@@ -204,25 +261,47 @@ presence AS (
     FROM base b
     LEFT JOIN conges c ON c.employe_id = b.employe_id AND c.mois = b.mois AND c.annee = b.annee
 ),
--- Heures sup breakdown (placeholder: toutes en normales 1.30)
+-- Agrégation des éléments variables de paie par employé / mois / année
+elem_vars AS (
+    SELECT
+        ev.idemploye AS employe_id,
+        ev.mois,
+        ev.annee,
+        SUM(CASE WHEN te.libelle = 'Prime de rendement' THEN ev.montant ELSE 0 END) AS prime_rendement,
+        SUM(CASE WHEN te.libelle = 'Prime d''ancienneté' THEN ev.montant ELSE 0 END) AS prime_anciennete,
+        SUM(CASE WHEN te.libelle = 'Indemnité transport' THEN ev.montant ELSE 0 END) AS indemnite_transport,
+        SUM(CASE WHEN te.libelle = 'Indemnité logement' THEN ev.montant ELSE 0 END) AS indemnite_logement,
+        SUM(CASE WHEN te.libelle = 'Avance sur salaire' THEN ev.montant ELSE 0 END) AS avance_sur_salaire,
+        SUM(CASE WHEN te.libelle = 'Retenue absence' THEN ev.montant ELSE 0 END) AS retenue_absence
+    FROM elementvariable ev
+    JOIN typeelementpaie te ON te.id = ev.idtypeelementpaie
+    GROUP BY ev.idemploye, ev.mois, ev.annee
+),
+-- Heures sup breakdown (utilise coefficient paramétrable HS_NORMALE)
 heures_sup AS (
     SELECT
         p.*,
         COALESCE(p.heures_supplementaires, 0) AS heures_sup_normales,
         0::numeric(12,2) AS heures_sup_majorees,
-        (COALESCE(p.heures_supplementaires,0) * p.taux_horaire_base * 1.30)::numeric(12,2) AS montant_heures_sup
+        (COALESCE(p.heures_supplementaires,0) * p.taux_horaire_base * get_coef_heures_sup('HS_NORMALE'))::numeric(12,2) AS montant_heures_sup
     FROM presence p
 ),
--- Primes & indemnités (placeholders)
+-- Primes & indemnités (alimentées par elementvariable)
 primes AS (
     SELECT
         h.*,
-        0::numeric(12,2) AS prime_rendement,
-        0::numeric(12,2) AS prime_anciennete,
-        CASE WHEN (h.minutes_retard_total > 0 OR h.jours_absences_non_justifiees > 0) THEN 0::numeric(12,2) ELSE 0::numeric(12,2) END AS prime_assiduite,
-        0::numeric(12,2) AS indemnite_transport,
-        0::numeric(12,2) AS indemnite_logement
+        COALESCE(v.prime_rendement, 0)::numeric(12,2) AS prime_rendement,
+        COALESCE(v.prime_anciennete, 0)::numeric(12,2) AS prime_anciennete,
+        0::numeric(12,2) AS prime_assiduite,
+        COALESCE(v.indemnite_transport, 0)::numeric(12,2) AS indemnite_transport,
+        COALESCE(v.indemnite_logement, 0)::numeric(12,2) AS indemnite_logement,
+        COALESCE(v.avance_sur_salaire, 0)::numeric(12,2) AS avance_sur_salaire,
+        COALESCE(v.retenue_absence, 0)::numeric(12,2) AS retenue_absence
     FROM heures_sup h
+    LEFT JOIN elem_vars v
+      ON v.employe_id = h.employe_id
+     AND v.mois = h.mois
+     AND v.annee = h.annee
 ),
 -- Deductions présence
 deductions AS (
@@ -264,9 +343,9 @@ net AS (
         ROUND(c.base_ostie * c.ostie_sal_taux / 100.0, 2) AS ostie_salarie,
         -- Salaire imposable
         (c.salaire_brut - (ROUND(c.base_cnaps * c.cnaps_sal_taux / 100.0, 2) + ROUND(c.base_ostie * c.ostie_sal_taux / 100.0, 2)))::numeric(12,2) AS salaire_imposable,
-        0::numeric(12,2) AS avance_sur_salaire,
-        0::numeric(12,2) AS pret_en_cours,
-        0::numeric(12,2) AS autres_retenues
+        COALESCE(c.avance_sur_salaire, 0)::numeric(12,2) AS avance_sur_salaire_calc,
+        0::numeric(12,2) AS pret_en_cours_calc,
+        COALESCE(c.retenue_absence, 0)::numeric(12,2) AS autres_retenues_calc
     FROM cotis c
 ),
 irsa_calc AS (
@@ -327,12 +406,12 @@ SELECT
     salaire_imposable,
     irsa,
     -- SECTION 10: AUTRES RETENUES
-    avance_sur_salaire,
-    pret_en_cours,
-    autres_retenues,
+    COALESCE(avance_sur_salaire_calc, 0)::numeric(12,2) AS avance_sur_salaire,
+    COALESCE(pret_en_cours_calc, 0)::numeric(12,2) AS pret_en_cours,
+    COALESCE(autres_retenues_calc, 0)::numeric(12,2) AS autres_retenues,
     -- SECTION 11: NET A PAYER
-    (cnaps_salarie + ostie_salarie + irsa + avance_sur_salaire + pret_en_cours + autres_retenues) AS total_retenues,
-    (salaire_brut - (cnaps_salarie + ostie_salarie + irsa + avance_sur_salaire + pret_en_cours + autres_retenues)) AS salaire_net,
+    (cnaps_salarie + ostie_salarie + irsa + COALESCE(avance_sur_salaire_calc,0) + COALESCE(pret_en_cours_calc,0) + COALESCE(autres_retenues_calc,0)) AS total_retenues,
+    (salaire_brut - (cnaps_salarie + ostie_salarie + irsa + COALESCE(avance_sur_salaire_calc,0) + COALESCE(pret_en_cours_calc,0) + COALESCE(autres_retenues_calc,0))) AS salaire_net,
     -- SECTION 12: CHARGES EMPLOYEUR (info)
     COALESCE(cnaps_emp_taux, 0::numeric(6,2)) AS cnaps_emp_taux,
     COALESCE(ostie_emp_taux, 0::numeric(6,2)) AS ostie_emp_taux,

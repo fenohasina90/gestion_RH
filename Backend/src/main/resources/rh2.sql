@@ -391,7 +391,7 @@ FROM demandeconge d
 JOIN employe e       ON e.id = d.idemploye
 JOIN typeconge tc    ON tc.id = d.idtypeconge
 JOIN statutdemande sd ON sd.id = d.idstatut
-WHERE lower(sd.nom) = 'validé rh';
+WHERE lower(sd.nom) = 'validé manager';
 
 -- ===========================================================
 -- PARTIE 4 : GESTION DU TEMPS ET PRÉSENCES
